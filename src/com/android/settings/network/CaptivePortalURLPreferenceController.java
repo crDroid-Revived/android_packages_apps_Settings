@@ -22,11 +22,8 @@ import android.content.om.IOverlayManager;
 import android.content.om.OverlayInfo;
 import android.content.pm.ApplicationInfo;
 import android.os.RemoteException;
-import android.os.AsyncTask;
 import android.os.ServiceManager;
 import android.os.UserManager;
-import android.util.Log;
-import android.widget.Toast;
 
 import androidx.preference.Preference;
 import androidx.preference.ListPreference;
@@ -67,27 +64,26 @@ public class CaptivePortalURLPreferenceController extends AbstractPreferenceCont
 
     @Override
     public void updateState(Preference preference) {
-        // In case UI is not ready.
-        if (preference == null) return;
+        if (preference == null) {
+            // In case UI is not ready.
+            return;
+        }
 
-        /* status query and fix, if needed */
-        boolean flagG1 = getOverlayState(GOOGLE_OV_A);
-        boolean flagS1 = getOverlayState(OPSUSE_OV_A);
-        boolean flagU1 = getOverlayState(UBUNTU_OV_A);
-        boolean flagG2 = getOverlayState(GOOGLE_OV_N);
-        boolean flagS2 = getOverlayState(OPSUSE_OV_N);
-        boolean flagU2 = getOverlayState(UBUNTU_OV_N);
+        /* simplified status query and fix, if needed */
+        boolean flagGoogle = getOverlayState(GOOGLE_OV_A);
+        boolean flagSUSE = getOverlayState(OPSUSE_OV_A);
+        boolean flagUbuntu = getOverlayState(UBUNTU_OV_A);
 
-        if ((flagS1 && flagS2) && !(flagG1 || flagG2 || flagU1 || flagU2)) {
+        if (flagSUSE) {
           updateCaptivePortalURLSummary(preference, OPENSUSE_204);
-        } else if ((flagU1 && flagU2) && !(flagG1 || flagG2 || flagS1 || flagS2)) {
+          setOverlayStates(false, true, false);
+        } else if (flagUbuntu) {
           updateCaptivePortalURLSummary(preference, UBUNTU_204);
-        } else if ((flagG1 && flagG2) && !(flagU1 || flagU2 || flagS1 || flagS2)) {
+          setOverlayStates(false, false, true);
+        } else if (flagGoogle) {
           updateCaptivePortalURLSummary(preference, GOOGLE_204);
-        } else if (!(flagG1 || flagG2 || flagU1 || flagU2 || flagS1 || flagS2)) {
-          updateCaptivePortalURLSummary(preference, GRAPHENE_204);
+          setOverlayStates(true, false, false);
         } else {
-          // Inconsistent state of Overlays => RESET!
           updateCaptivePortalURLSummary(preference, GRAPHENE_204);
           setOverlayStates(false, false, false);
         }
@@ -95,33 +91,39 @@ public class CaptivePortalURLPreferenceController extends AbstractPreferenceCont
 
     @Override
     public boolean onPreferenceChange(Preference preference, Object newValue) {
+        boolean flagGoogle;
+        boolean flagSUSE;
+        boolean flagUbuntu;
         String provider = (String) newValue;
+
         switch (provider) {
             case GOOGLE_204:
-                setOverlayStates(true,  /*Google*/
-                                 false, /*openSUSE*/
-                                 false  /*Ubuntu*/ );
+                flagGoogle = true;
+                flagSUSE   = false;
+                flagUbuntu = false;
                 break;
 
             case OPENSUSE_204:
-                setOverlayStates(false, /*Google*/
-                                 true,  /*openSUSE*/
-                                 false  /*Ubuntu*/ );
+                flagGoogle = false;
+                flagSUSE   = true;
+                flagUbuntu = false;
                 break;
 
             case UBUNTU_204:
-                setOverlayStates(false, /*Google*/
-                                 false, /*openSUSE*/
-                                 true   /*Ubuntu*/ );
+                flagGoogle = false;
+                flagSUSE   = false;
+                flagUbuntu = true;
                 break;
 
             default:
-                provider = GRAPHENE_204;
-                setOverlayStates(false, /*Google*/
-                                 false, /*openSUSE*/
-                                 false  /*Ubuntu*/ );
+                flagGoogle = false;
+                flagSUSE   = false;
+                flagUbuntu = false;
+                provider   = GRAPHENE_204;
                 break;
         }
+
+        setOverlayStates(flagGoogle, flagSUSE, flagUbuntu);
         updateCaptivePortalURLSummary(preference, provider);
         return true;
     }
@@ -172,40 +174,25 @@ public class CaptivePortalURLPreferenceController extends AbstractPreferenceCont
     }
 
     private void updateCaptivePortalURLSummary(Preference preference, String provider) {
+        int valueIndex;
+        String prefSummary;
         ListPreference listpref = (ListPreference) preference;
-        if (listpref.getValue() != provider) listpref.setValue(provider);
-        listpref.setSummary(mContext.getString(R.string.captive_portal_url_summary, provider));
+
+        valueIndex = listpref.findIndexOfValue(provider);
+        prefSummary = mContext.getString(R.string.captive_portal_url_summary, provider);
+        listpref.setSummary(prefSummary);
+        listpref.setValueIndex(valueIndex);
     }
 
     private void setOverlayStates(boolean flagGoogle, boolean flagSUSE, boolean flagUbuntu) {
-        new AsyncTask<Void, Void, Boolean>() {
-            @Override
-            protected Boolean doInBackground(Void... params) {
-                try {
-                    mOverlayManager.setEnabled(GOOGLE_OV_A, flagGoogle, USER_CURRENT);
-                    mOverlayManager.setEnabled(GOOGLE_OV_N, flagGoogle, USER_CURRENT);
-                    mOverlayManager.setEnabled(OPSUSE_OV_A, flagSUSE, USER_CURRENT);
-                    mOverlayManager.setEnabled(OPSUSE_OV_N, flagSUSE, USER_CURRENT);
-                    mOverlayManager.setEnabled(UBUNTU_OV_A, flagUbuntu, USER_CURRENT);
-                    mOverlayManager.setEnabled(UBUNTU_OV_N, flagUbuntu, USER_CURRENT);
-                    return true;
-                } catch (RemoteException re) {
-                    Log.w(TAG, "Error setting Captive portal RROs", re);
-                    return false;
-                }
-
-            }
-
-            @Override
-            protected void onPostExecute(Boolean success) {
-                int toastMessage;
-                if (success)
-                    toastMessage = R.string.captive_portal_toast_success;
-                else
-                    toastMessage = R.string.overlay_toast_failed_to_apply;
-                Toast.makeText(mContext, toastMessage, Toast.LENGTH_LONG).show();
-            }
-        }.execute();
+       try {
+           mOverlayManager.setEnabled(GOOGLE_OV_A, flagGoogle, USER_CURRENT);
+           mOverlayManager.setEnabled(GOOGLE_OV_N, flagGoogle, USER_CURRENT);
+           mOverlayManager.setEnabled(OPSUSE_OV_A, flagSUSE, USER_CURRENT);
+           mOverlayManager.setEnabled(OPSUSE_OV_N, flagSUSE, USER_CURRENT);
+           mOverlayManager.setEnabled(UBUNTU_OV_A, flagUbuntu, USER_CURRENT);
+           mOverlayManager.setEnabled(UBUNTU_OV_N, flagUbuntu, USER_CURRENT);
+           } catch (RemoteException e) { /* do nothing */ }
     }
 
     private boolean getOverlayState(String packageName) {
