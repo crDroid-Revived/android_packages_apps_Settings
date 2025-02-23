@@ -105,8 +105,6 @@ public class NetworkDashboardFragment extends DashboardFragment implements
                 new PrivateDnsPreferenceController(context);
         final CaptivePortalModePreferenceController captiveportalModePreferenceController =
                 new CaptivePortalModePreferenceController(context, fragment);
-        final CaptivePortalURLPreferenceController captiveportalURLPreferenceController =
-                new CaptivePortalURLPreferenceController(context);
 
         if (lifecycle != null) {
             lifecycle.addObserver(mobilePlanPreferenceController);
@@ -125,7 +123,6 @@ public class NetworkDashboardFragment extends DashboardFragment implements
         controllers.add(wifiPreferenceController);
         controllers.add(privateDnsPreferenceController);
         controllers.add(captiveportalModePreferenceController);
-        controllers.add(captiveportalURLPreferenceController);
         return controllers;
     }
 
