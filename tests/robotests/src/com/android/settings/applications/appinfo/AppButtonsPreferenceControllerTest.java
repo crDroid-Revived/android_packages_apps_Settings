@@ -81,7 +81,6 @@ import org.robolectric.util.ReflectionHelpers;
 
 import java.util.Set;
 
-@Config(shadows = {ShadowUtils.class})
 @RunWith(RobolectricTestRunner.class)
 public class AppButtonsPreferenceControllerTest {
 
@@ -167,7 +166,6 @@ public class AppButtonsPreferenceControllerTest {
     @After
     public void tearDown() {
         ShadowAppUtils.reset();
-        ShadowUtils.reset();
     }
 
     @Test
